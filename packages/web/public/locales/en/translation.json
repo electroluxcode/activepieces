@@ -3578,6 +3578,8 @@
   "Every Enterprise plan feature is on until {day, select, today {today at {time}} tomorrow {tomorrow at {time}} other {{date}}}. Your credits are not affected.": "Every Enterprise plan feature is on until {day, select, today {today at {time}} tomorrow {tomorrow at {time}} other {{date}}}. Your credits are not affected.",
   "Image preview": "Image preview",
   "The assistant did not respond. Please try again.": "The assistant did not respond. Please try again.",
+  "Conversation not found": "Conversation not found",
+  "this chat": "this chat",
   "The last reply did not finish. Please try again.": "The last reply did not finish. Please try again.",
   "Couldn't switch the model. Try again.": "Couldn't switch the model. Try again.",
   "From your email": "From your email",
@@ -4001,5 +4003,6 @@
   "batchRetryRunCount": "{count, plural, =1 {1 run will be retried.} other {# runs will be retried.}}",
   "Some of these runs may process items in batches. Cancelling stops batches that are queued or paused, and a paused batch loses its approval or delay. Batches that are already running finish.": "Some of these runs may process items in batches. Cancelling stops batches that are queued or paused, and a paused batch loses its approval or delay. Batches that are already running finish.",
   "Keep running": "Keep running",
-  "Step data": "Step data"
+  "Step data": "Step data",
+  "Load this chat again before you reply.": "Load this chat again before you reply."
 }
