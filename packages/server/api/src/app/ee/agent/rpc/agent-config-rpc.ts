@@ -1,7 +1,7 @@
 import { ActivepiecesAiBilling, ActivepiecesAiConsumerSource, ActivepiecesError, AIProviderName, ErrorCode, isFallbackWorthy, isNil, spreadIfDefined, tryCatch } from '@activepieces/core-utils'
 import { agentAiUtils, aiProviderSignal, aiUtils, modelCatalog } from '@activepieces/server-utils'
 import { AgentConfigResponse, AgentConversation, AgentRunSource, aiProviderUtils, GetAgentConfigRequest, GetEnabledAiToolsResponse, GetProviderConfigResponse, PersistedAgentMessage, PersistedAgentPartType, PersistedAgentRole } from '@activepieces/shared'
-import { LanguageModel, ModelMessage, UserContent } from 'ai'
+import { LanguageModel, ModelMessage, TextPart, UserContent } from 'ai'
 import { FastifyBaseLogger } from 'fastify'
 import { agentApprovalGate } from '.././agent-approval-gate'
 import { agentChatModel } from '.././agent-chat-model'
@@ -11,6 +11,7 @@ import { agentHelpers } from '.././agent-helpers'
 import { agentModelTier, agentTierCandidates, AgentTierRun } from '.././agent-model-tier'
 import { agentMcp } from '.././mcp/agent-mcp'
 import { chatPersonalizationService } from '.././personalization/chat-personalization-service'
+import { agentPageContextNote } from '.././prompt/agent-page-context-note'
 import { agentPrompt } from '.././prompt/agent-prompt'
 import { agentSurfaceNotes } from '.././prompt/agent-surface-notes'
 import { UserIdentity } from '.././prompt/agent-user-identity'
@@ -242,7 +243,14 @@ export const agentConfigRpc = (log: FastifyBaseLogger) => ({
         const history = resumedHistory ?? conversation
         const previousMessages = history.messages as ModelMessage[]
         const onboardingNote = agentSurfaceNotes.onboardingNote({ source: conversation.source, ...spreadIfDefined('messageSource', input.messageSource) })
-        const newUserMessage: ModelMessage = { role: 'user' as const, content: isNil(onboardingNote) ? userContent : withLeadingNote({ content: userContent, note: onboardingNote }) }
+        const pageNote = await agentPageContextNote.build({ pageContext: input.pageContext, userId, log })
+        const pageNoteIsNew = !isNil(pageNote) && !agentPageContextNote.isLatestIn({ note: pageNote, messages: previousMessages })
+        const leadingNotes: TextPart[] = [
+            ...(isNil(onboardingNote) ? [] : [{ type: 'text' as const, text: onboardingNote }]),
+            ...(pageNoteIsNew ? [pageNote] : []),
+        ]
+        const newUserContent = leadingNotes.reduceRight<UserContent>((content, note) => withLeadingNote({ content, note }), userContent)
+        const newUserMessage: ModelMessage = { role: 'user' as const, content: newUserContent }
         const allMessages = isNil(resumedHistory) ? [...previousMessages, newUserMessage] : previousMessages
         const fastModelSeesMessages = conversation.source !== AgentRunSource.CHAT
         const modelsSeeingMessages = isNil(tierRun)
@@ -310,13 +318,14 @@ export const agentConfigRpc = (log: FastifyBaseLogger) => ({
             log.info({ summarizedUpToIndex: compactionState.summarizedUpToIndex, summaryLength: compactionState.summary?.length ?? 0 }, '[agentRpc#getAgentConfig] Compaction ran')
         }
 
-        const messagesForLlm = agentCompaction.buildCompactedPayload({
+        const compactedMessages = agentCompaction.buildCompactedPayload({
             messages: llmHistory,
             summary: compactionState.summary,
             summarizedUpToIndex: compactionState.summarizedUpToIndex,
             provider: contextProvider,
             reservedTokens: payloadReservedTokens,
         })
+        const messagesForLlm = agentPageContextNote.ensureVisible({ note: pageNote, messages: compactedMessages })
 
         log.info({
             historyMessageCount: messagesForLlm.length,
@@ -365,8 +374,8 @@ export const agentConfigRpc = (log: FastifyBaseLogger) => ({
 
 })
 
-function withLeadingNote({ content, note }: { content: UserContent, note: string }): UserContent {
-    return [{ type: 'text', text: note }, ...(typeof content === 'string' ? [{ type: 'text' as const, text: content }] : content)]
+function withLeadingNote({ content, note }: { content: UserContent, note: TextPart }): UserContent {
+    return [note, ...(typeof content === 'string' ? [{ type: 'text' as const, text: content }] : content)]
 }
 
 function tierIdForRun({ conversation, requestedTierId }: { conversation: AgentConversation, requestedTierId: string | null }): string | null {
