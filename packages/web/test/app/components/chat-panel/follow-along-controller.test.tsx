@@ -5,7 +5,7 @@ import {
   WebsocketClientEvent,
 } from '@activepieces/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,6 +14,7 @@ import {
   followAlong,
   useFollowAlong,
 } from '@/features/chat/lib/follow/follow-along';
+import { followHold } from '@/features/chat/lib/follow/follow-hold';
 import { useChatPanel } from '@/features/workspace/lib/chat-panel-open';
 import { authenticationSession } from '@/lib/authentication-session';
 
@@ -118,7 +119,21 @@ describe('FollowAlongController', () => {
 
     await resolveName('flow-a', 'Flow A');
 
-    expect(useFollowAlong.getState().target).toBeNull();
+    expect(useFollowAlong.getState()).toMatchObject({
+      target: null,
+      offer: null,
+    });
+  });
+
+  it('keeps the page held until the click after a press has run', () => {
+    vi.useFakeTimers();
+    fireEvent.pointerDown(document.body);
+    fireEvent.pointerUp(document.body);
+
+    expect(followHold.pagePressed()).toBe(true);
+    act(() => vi.runAllTimers());
+    expect(followHold.pagePressed()).toBe(false);
+    vi.useRealTimers();
   });
 
   it('follows the newest flow when an earlier lookup finishes last', async () => {
