@@ -4,6 +4,7 @@ import {
   FlowRunStatus,
   FlowVersionState,
   flowStructureUtil,
+  ResourceChangeOp,
   WebsocketClientEvent,
   RunEnvironment,
   isFlowRunStateTerminal,
@@ -150,6 +151,7 @@ const useRefreshDraftOnPush = () => {
     const refreshOnPush = (event: FlowDraftUpdatedEvent) => {
       if (
         event.flowId !== flowId ||
+        event.op !== ResourceChangeOp.UPDATE ||
         event.editorSessionId === editorSession.getId()
       ) {
         return;
